@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
-import { Redis } from "ioredis";
 import { StorageError } from "../domain/errors";
+import { getSharedRedisClient, type RedisConnectionConfig } from "./SharedRedisClient";
 import type {
   HourlyRateSnapshot,
   DailyRateAverage,
@@ -57,10 +57,10 @@ export class RedisService extends Context.Tag("RedisService")<
     RedisService,
     Effect.gen(function* () {
       const config = yield* RedisConfig;
-      const redis = new Redis({
+      const redis = getSharedRedisClient({
         host: config.host,
         port: config.port,
-      });
+      } satisfies RedisConnectionConfig);
 
       const get = (key: string): Effect.Effect<string | null, StorageError> =>
         Effect.tryPromise({
