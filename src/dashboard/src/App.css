@@ -151,6 +151,23 @@ body {
   background-color: #0f1419;
   border-radius: 8px;
   border: 1px solid #333366;
+  margin-bottom: 0.5rem;
+}
+
+.spread-direction {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background-color: rgba(15, 20, 25, 0.5);
+  border-radius: 6px;
+  border: 1px solid #444466;
+}
+
+.direction-text {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #cccccc;
 }
 
 .spread-label {

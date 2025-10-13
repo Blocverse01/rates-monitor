@@ -24,8 +24,13 @@ const RateCard: React.FC<RateCardProps> = ({ token, rates, spread }) => {
 
   const formatSpread = (spread?: SpreadData) => {
     if (!spread) return '--'
+
+    // Calculate absolute spread in Naira
+    const nairaSpread = Math.abs(spread.bybitRate - spread.cngnRate)
     const sign = spread.direction === 'bybit_higher' ? '+' : '-'
-    return `${sign}${spread.percentageSpread.toFixed(2)}%`
+    const percentageText = `${sign}${spread.percentageSpread.toFixed(2)}%`
+
+    return `₦${nairaSpread.toFixed(2)} (${percentageText})`
   }
 
   const getSpreadColor = (spread?: SpreadData) => {
@@ -63,6 +68,15 @@ const RateCard: React.FC<RateCardProps> = ({ token, rates, spread }) => {
           {formatSpread(spread)}
         </span>
       </div>
+
+      {spread && (
+        <div className="spread-direction">
+          <span className="spread-label">Direction:</span>
+          <span className="direction-text">
+            {spread.direction.replace('_', ' ').toUpperCase()}
+          </span>
+        </div>
+      )}
     </div>
   )
 }
