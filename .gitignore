@@ -65,6 +65,7 @@ logs/
 # Nuxt.js build / generate output
 .nuxt
 dist
+dashboard-dist
 
 # Storybook build outputs
 .out

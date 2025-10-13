@@ -164,22 +164,27 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         });
       }
 
-      // Add spread data (percentage, using secondary y-axis)
+      // Add spread data (in Naira, using secondary y-axis)
+      // USDT uses BEP20, USDC uses Base
       const spreadData = historyData.days.map((day) => {
         const bybit = day.rates[token]?.bybit;
-        const cngnBase = day.rates[token]?.cngn_base;
+        const cngnRate = token === 'USDT'
+          ? day.rates[token]?.cngn_bep20  // USDT uses BEP20
+          : day.rates[token]?.cngn_base;  // USDC uses Base
 
-        if (!bybit || !cngnBase) return null;
+        if (!bybit || !cngnRate) return null;
 
-        // Calculate percentage spread
-        const spread = Math.abs(bybit - cngnBase);
-        const percentageSpread = (spread / Math.min(bybit, cngnBase)) * 100;
-        return percentageSpread;
+        // Calculate absolute spread in Naira
+        return Math.abs(bybit - cngnRate);
       });
+
+      const spreadLabel = token === 'USDT'
+        ? "ByBit vs CNGN BEP20 Spread"
+        : "ByBit vs CNGN Base Spread";
 
       if (spreadData.some((value) => value !== null)) {
         datasets.push({
-          label: "Base Spread %",
+          label: spreadLabel,
           data: spreadData,
           borderColor: "rgba(255, 193, 7, 0.9)", // yellow/orange
           backgroundColor: "rgba(255, 193, 7, 0.1)",
@@ -253,6 +258,38 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         });
       }
 
+      // Add spread data (in Naira, using secondary y-axis)
+      // USDT uses BEP20, USDC uses Base
+      const spreadData = hourlyData.map((snapshot) => {
+        const bybit = snapshot.rates[token]?.bybit;
+        const cngnRate = token === 'USDT'
+          ? snapshot.rates[token]?.cngn_bep20  // USDT uses BEP20
+          : snapshot.rates[token]?.cngn_base;  // USDC uses Base
+
+        if (!bybit || !cngnRate) return null;
+
+        // Calculate absolute spread in Naira
+        return Math.abs(bybit - cngnRate);
+      });
+
+      const spreadLabel = token === 'USDT'
+        ? "ByBit vs CNGN BEP20 Spread"
+        : "ByBit vs CNGN Base Spread";
+
+      if (spreadData.some((value) => value !== null)) {
+        datasets.push({
+          label: spreadLabel,
+          data: spreadData,
+          borderColor: "rgba(255, 193, 7, 0.9)", // yellow/orange
+          backgroundColor: "rgba(255, 193, 7, 0.1)",
+          borderDash: [5, 5], // dashed line
+          tension: 0.1,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          yAxisID: "y1", // Use secondary y-axis
+        });
+      }
+
       return { labels, datasets };
     }
   };
@@ -317,6 +354,8 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
           label: function (context: any) {
             const value = context.parsed.y;
             if (value === null) return "";
+
+            // All data now shows in Naira format
             return `${context.dataset.label}: ₦${value.toLocaleString("en-NG", {
               minimumFractionDigits: 2,
               maximumFractionDigits: 2,
@@ -346,7 +385,9 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         },
       },
       y: {
+        type: "linear" as const,
         display: true,
+        position: "left" as const,
         title: {
           display: true,
           text: "Rate (NGN)",
@@ -357,6 +398,25 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         },
         ticks: {
           color: "#cccccc",
+          callback: function (value: any) {
+            return "₦" + value.toLocaleString("en-NG");
+          },
+        },
+      },
+      y1: {
+        type: "linear" as const,
+        display: true,
+        position: "right" as const,
+        title: {
+          display: true,
+          text: "Spread (₦)",
+          color: "#ffc107",
+        },
+        grid: {
+          drawOnChartArea: false, // Only show grid for primary y-axis
+        },
+        ticks: {
+          color: "#ffc107",
           callback: function (value: any) {
             return "₦" + value.toLocaleString("en-NG");
           },
