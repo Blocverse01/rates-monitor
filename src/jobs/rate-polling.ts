@@ -6,13 +6,20 @@ import { SpreadCalculatorService } from "../services/SpreadCalculatorService";
 import { AlertManagerService } from "../services/AlertManagerService";
 import { ServicesLayerLive } from "../layers/services";
 import { ConfigLayerLive } from "../layers/config";
-import { broadcastRateUpdate, broadcastVolatilityAlert } from "../api/server";
+import {
+  broadcastRateUpdate,
+  broadcastVolatilityAlert,
+  broadcastHourlyDataUpdate,
+} from "../api/server";
+import { RedisService } from "../infrastructure/RedisService";
+import { InfrastructureLayerLive } from "../layers/infrastructure";
 
 const ratePollingProgram = Effect.gen(function* () {
   const rateFetcher = yield* RateFetcherService;
   const volatilityDetector = yield* VolatilityDetectorService;
   const spreadCalc = yield* SpreadCalculatorService;
   const alertManager = yield* AlertManagerService;
+  const redis = yield* RedisService;
 
   console.log("Fetching rates...");
 
@@ -58,6 +65,22 @@ const ratePollingProgram = Effect.gen(function* () {
     }
   });
 
+  // Check if we should broadcast hourly data update (every 10 minutes)
+  const now = Date.now();
+  const tenMinutesInMs = 10 * 60 * 1000;
+  const shouldBroadcastHourly = now % tenMinutesInMs < 30000; // Within 30s of 10-minute interval
+
+  if (shouldBroadcastHourly) {
+    try {
+      const today = new Date().toISOString().split("T")[0]!;
+      const hourlyData = yield* redis.getHourlySnapshots(today);
+      broadcastHourlyDataUpdate(hourlyData);
+      console.log("Broadcasted hourly data update");
+    } catch (error) {
+      console.error("Failed to broadcast hourly data:", error);
+    }
+  }
+
   console.log("Rate polling completed");
 });
 
@@ -76,6 +99,7 @@ export function setupRatePollingJob() {
     async () => {
       const program = ratePollingProgram.pipe(
         Effect.provide(ServicesLayerLive),
+        Effect.provide(InfrastructureLayerLive),
         Effect.provide(ConfigLayerLive)
       );
 

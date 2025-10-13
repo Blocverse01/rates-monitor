@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { io, Socket } from "socket.io-client";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -43,6 +44,33 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
 
   useEffect(() => {
     fetchData();
+  }, [viewMode]);
+
+  // WebSocket listeners for real-time historical data updates
+  useEffect(() => {
+    const newSocket = io("ws://localhost:3000", {
+      transports: ["websocket"],
+    });
+
+    // Listen for hourly data updates (24h view)
+    newSocket.on("hourly_data_update", (update: { data: HourlyRateSnapshot[]; timestamp: number }) => {
+      if (viewMode === "24h") {
+        console.log("Received hourly data update", update.timestamp);
+        setHourlyData(update.data);
+      }
+    });
+
+    // Listen for daily data updates (7d view)
+    newSocket.on("daily_data_update", (update: { data: RateHistoryResponse; timestamp: number }) => {
+      if (viewMode === "7d") {
+        console.log("Received daily data update", update.timestamp);
+        setHistoryData(update.data);
+      }
+    });
+
+    return () => {
+      newSocket.close();
+    };
   }, [viewMode]);
 
   const fetchData = async () => {

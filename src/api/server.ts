@@ -342,3 +342,17 @@ export function broadcastVolatilityAlert(alert: any) {
     io.emit("volatility_alert", alert);
   }
 }
+
+// Export function to broadcast hourly data updates to connected clients
+export function broadcastHourlyDataUpdate(hourlyData: any) {
+  if (io) {
+    io.emit("hourly_data_update", { data: hourlyData, timestamp: Date.now() });
+  }
+}
+
+// Export function to broadcast daily data updates to connected clients
+export function broadcastDailyDataUpdate(dailyData: any) {
+  if (io) {
+    io.emit("daily_data_update", { data: dailyData, timestamp: Date.now() });
+  }
+}
