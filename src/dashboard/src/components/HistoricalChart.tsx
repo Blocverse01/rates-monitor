@@ -204,7 +204,9 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
       }
 
       const labels = hourlyData.map((snapshot) => {
-        const hour = snapshot.hour;
+        // Convert UTC timestamp to user's local timezone
+        const localDate = new Date(snapshot.timestamp);
+        const hour = localDate.getHours();
         return `${hour.toString().padStart(2, "0")}:00`;
       });
 
@@ -351,6 +353,25 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         borderColor: "#333366",
         borderWidth: 1,
         callbacks: {
+          title: function (context: any) {
+            if (viewMode === "24h" && hourlyData) {
+              // For hourly data, show the full local time
+              const dataIndex = context[0].dataIndex;
+              const snapshot = hourlyData[dataIndex];
+              if (snapshot) {
+                const localDate = new Date(snapshot.timestamp);
+                return localDate.toLocaleString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  timeZoneName: "short"
+                });
+              }
+            }
+            // For daily data, use the default label
+            return context[0].label;
+          },
           label: function (context: any) {
             const value = context.parsed.y;
             if (value === null) return "";
