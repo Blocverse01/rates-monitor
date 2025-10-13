@@ -103,6 +103,11 @@ Time: ${new Date(alert.timestamp).toLocaleString()}
       ): Effect.Effect<void, NotificationError> =>
         Effect.gen(function* () {
           for (const spread of spreads) {
+            // Skip USDC spread alerts for now
+            if (spread.token === "USDC") {
+              continue;
+            }
+
             // Get previous alert state for this token
             const alertStateKey = `spread_alert_state:${spread.token}`;
             const previouslyAboveThreshold = yield* Effect.catchAll(
