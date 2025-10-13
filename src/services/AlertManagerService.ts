@@ -1,6 +1,7 @@
 import { Context, Effect, Layer } from "effect";
 import { WhatsAppService } from "../infrastructure/WhatsAppService";
 import { EmailService } from "../infrastructure/EmailService";
+import { RedisService } from "../infrastructure/RedisService";
 import type { SpreadData, VolatilityAlert, AlertConfig } from "../domain/types";
 import type { NotificationError } from "../domain/errors";
 
@@ -22,17 +23,35 @@ export class AlertManagerService extends Context.Tag("AlertManagerService")<
     Effect.gen(function* () {
       const whatsapp = yield* WhatsAppService;
       const email = yield* EmailService;
+      const redis = yield* RedisService;
       const config = yield* AlertConfigTag;
 
       const formatSpreadAlert = (spread: SpreadData): string =>
         `
-🚨 SPREAD ALERT - ${spread.token}
+🚨 SPREAD ALERT ACTIVATED - ${spread.token}
 
 ByBit Rate: ₦${spread.bybitRate.toFixed(2)}
 CNGN Rate: ₦${spread.cngnRate.toFixed(2)}
 
 Spread: ₦${spread.absoluteSpread.toFixed(2)} (${spread.percentageSpread.toFixed(2)}%)
 Direction: ${spread.direction === "bybit_higher" ? "ByBit is higher" : "CNGN is higher"}
+
+⚠️ Threshold: ₦${config.spreadThreshold}
+
+Time: ${new Date(spread.timestamp).toLocaleString()}
+      `.trim();
+
+      const formatSpreadClearedAlert = (spread: SpreadData): string =>
+        `
+✅ SPREAD ALERT CLEARED - ${spread.token}
+
+ByBit Rate: ₦${spread.bybitRate.toFixed(2)}
+CNGN Rate: ₦${spread.cngnRate.toFixed(2)}
+
+Spread: ₦${spread.absoluteSpread.toFixed(2)} (${spread.percentageSpread.toFixed(2)}%)
+Direction: ${spread.direction === "bybit_higher" ? "ByBit is higher" : "CNGN is higher"}
+
+✅ Back below threshold: ₦${config.spreadThreshold}
 
 Time: ${new Date(spread.timestamp).toLocaleString()}
       `.trim();
@@ -83,13 +102,60 @@ Time: ${new Date(alert.timestamp).toLocaleString()}
         spreads: readonly SpreadData[]
       ): Effect.Effect<void, NotificationError> =>
         Effect.gen(function* () {
-          const alertSpreads = spreads.filter(
-            (spread) => spread.percentageSpread >= config.spreadThreshold
-          );
+          for (const spread of spreads) {
+            // Get previous alert state for this token
+            const alertStateKey = `spread_alert_state:${spread.token}`;
+            const previouslyAboveThreshold = yield* Effect.catchAll(
+              redis
+                .get(alertStateKey)
+                .pipe(Effect.map((value) => value === "true")),
+              () => Effect.succeed(false)
+            );
 
-          for (const spread of alertSpreads) {
-            const message = formatSpreadAlert(spread);
-            yield* sendAlerts(message);
+            const currentlyAboveThreshold =
+              spread.absoluteSpread >= config.spreadThreshold;
+
+            // Only send alerts on state changes
+            if (currentlyAboveThreshold && !previouslyAboveThreshold) {
+              // Spread just crossed above threshold - send alert
+              const message = formatSpreadAlert(spread);
+              yield* sendAlerts(message);
+
+              // Update state in Redis
+              yield* Effect.catchAll(
+                redis.set(alertStateKey, "true"),
+                (error) => {
+                  console.error(
+                    `Failed to update Redis alert state for ${spread.token}:`,
+                    error
+                  );
+                  return Effect.succeed(void 0);
+                }
+              );
+              console.log(
+                `Spread alert activated for ${spread.token}: ₦${spread.absoluteSpread.toFixed(2)}`
+              );
+            } else if (!currentlyAboveThreshold && previouslyAboveThreshold) {
+              // Spread just dropped below threshold - send cleared alert
+              const message = formatSpreadClearedAlert(spread);
+              yield* sendAlerts(message);
+
+              // Update state in Redis
+              yield* Effect.catchAll(
+                redis.set(alertStateKey, "false"),
+                (error) => {
+                  console.error(
+                    `Failed to update Redis alert state for ${spread.token}:`,
+                    error
+                  );
+                  return Effect.succeed(void 0);
+                }
+              );
+              console.log(
+                `Spread alert cleared for ${spread.token}: ₦${spread.absoluteSpread.toFixed(2)}`
+              );
+            }
+            // If state hasn't changed, don't send any alerts
           }
         });
 

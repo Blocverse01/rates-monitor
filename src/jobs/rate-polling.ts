@@ -52,7 +52,7 @@ const ratePollingProgram = Effect.gen(function* () {
   broadcastRateUpdate(currentRates, spreads);
 
   // Broadcast volatility alerts
-  alerts.forEach(alert => {
+  alerts.forEach((alert) => {
     if (alert) {
       broadcastVolatilityAlert(alert);
     }

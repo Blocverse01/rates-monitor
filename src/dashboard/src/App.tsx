@@ -101,7 +101,7 @@ function App() {
   return (
     <div className="app">
       <header className="header">
-        <h1>🔥 Rates Monitor Dashboard</h1>
+        <h1>💹 Rates Monitor Dashboard</h1>
         <ConnectionStatus
           connected={state.connected}
           lastUpdate={state.lastUpdate}

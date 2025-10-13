@@ -47,7 +47,7 @@ export class VolatilityDetectorService extends Context.Tag(
           const change = currentRate - previousRate;
           const changePercent = Math.abs((change / previousRate) * 100);
 
-          if (changePercent >= config.threshold) {
+          if (change >= config.threshold) {
             return {
               token,
               source,
