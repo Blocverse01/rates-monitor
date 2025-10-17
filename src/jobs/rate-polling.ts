@@ -13,6 +13,7 @@ import {
 } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
+import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
 
 const ratePollingProgram = Effect.gen(function* () {
   const rateFetcher = yield* RateFetcherService;
@@ -90,8 +91,11 @@ export function setupRatePollingJob() {
     port: parseInt(process.env.REDIS_PORT || "6379"),
   };
 
+  // Use shared Redis client to prevent connection leaks
+  const sharedRedisClient = getSharedRedisClient(redisConfig);
+
   const queue = new Queue("rate-polling", {
-    connection: redisConfig,
+    connection: sharedRedisClient,
   });
 
   const worker = new Worker(
@@ -106,7 +110,7 @@ export function setupRatePollingJob() {
       await Effect.runPromise(program);
     },
     {
-      connection: redisConfig,
+      connection: sharedRedisClient,
     }
   );
 
@@ -121,5 +125,20 @@ export function setupRatePollingJob() {
     }
   );
 
-  return { queue, worker };
+  // Cleanup handlers to properly close BullMQ connections
+  const cleanup = async () => {
+    console.log("Cleaning up rate polling job...");
+    try {
+      await worker.close();
+      await queue.close();
+    } catch (error) {
+      console.error("Error during rate polling cleanup:", error);
+    }
+  };
+
+  process.on("SIGTERM", cleanup);
+  process.on("SIGINT", cleanup);
+  process.on("beforeExit", cleanup);
+
+  return { queue, worker, cleanup };
 }

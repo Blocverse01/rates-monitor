@@ -6,6 +6,7 @@ import { ConfigLayerLive } from "../layers/config";
 import { broadcastDailyDataUpdate } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
+import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
 
 const dailyAggregationProgram = Effect.gen(function* () {
   const aggregator = yield* DailyAggregationService;
@@ -42,8 +43,11 @@ export function setupDailyAggregationJob() {
     port: parseInt(process.env.REDIS_PORT || "6379"),
   };
 
+  // Use shared Redis client to prevent connection leaks
+  const sharedRedisClient = getSharedRedisClient(redisConfig);
+
   const queue = new Queue("daily-aggregation", {
-    connection: redisConfig,
+    connection: sharedRedisClient,
   });
 
   const worker = new Worker(
@@ -58,7 +62,7 @@ export function setupDailyAggregationJob() {
       await Effect.runPromise(program);
     },
     {
-      connection: redisConfig,
+      connection: sharedRedisClient,
     }
   );
 
@@ -73,5 +77,20 @@ export function setupDailyAggregationJob() {
     }
   );
 
-  return { queue, worker };
+  // Cleanup handlers to properly close BullMQ connections
+  const cleanup = async () => {
+    console.log("Cleaning up daily aggregation job...");
+    try {
+      await worker.close();
+      await queue.close();
+    } catch (error) {
+      console.error("Error during daily aggregation cleanup:", error);
+    }
+  };
+
+  process.on("SIGTERM", cleanup);
+  process.on("SIGINT", cleanup);
+  process.on("beforeExit", cleanup);
+
+  return { queue, worker, cleanup };
 }
