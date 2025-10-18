@@ -10,6 +10,7 @@ import {
   broadcastRateUpdate,
   broadcastVolatilityAlert,
   broadcastHourlyDataUpdate,
+  registerQueue,
 } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
@@ -97,6 +98,9 @@ export function setupRatePollingJob() {
   const queue = new Queue("rate-polling", {
     connection: sharedRedisClient,
   });
+
+  // Register queue with Bull Board
+  registerQueue(queue);
 
   const worker = new Worker(
     "rate-polling",

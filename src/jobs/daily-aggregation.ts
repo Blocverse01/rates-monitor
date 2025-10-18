@@ -3,7 +3,7 @@ import { Queue, Worker } from "bullmq";
 import { DailyAggregationService } from "../services/DailyAggregationService";
 import { ServicesLayerLive } from "../layers/services";
 import { ConfigLayerLive } from "../layers/config";
-import { broadcastDailyDataUpdate } from "../api/server";
+import { broadcastDailyDataUpdate, registerQueue } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
 import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
@@ -49,6 +49,9 @@ export function setupDailyAggregationJob() {
   const queue = new Queue("daily-aggregation", {
     connection: sharedRedisClient,
   });
+
+  // Register queue with Bull Board
+  registerQueue(queue);
 
   const worker = new Worker(
     "daily-aggregation",

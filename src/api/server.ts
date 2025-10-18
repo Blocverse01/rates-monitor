@@ -12,9 +12,16 @@ import type { RateHistoryResponse } from "../domain/types";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
 import path from "path";
 import fs from "node:fs";
+import { createBullBoard } from "@bull-board/api";
+import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
+import { ExpressAdapter } from "@bull-board/express";
+import { Queue } from "bullmq";
 
 // Global WebSocket server instance for rate broadcasting
 let io: SocketIOServer | null = null;
+
+// Global Bull Board setup
+let bullBoardQueues: Queue[] = [];
 
 export function createServer(): {
   app: express.Express;
@@ -34,6 +41,17 @@ export function createServer(): {
   });
 
   app.use(express.json());
+
+  // Setup Bull Board for queue monitoring
+  const serverAdapter = new ExpressAdapter();
+  serverAdapter.setBasePath("/admin/queues");
+
+  createBullBoard({
+    queues: bullBoardQueues.map((queue) => new BullMQAdapter(queue)),
+    serverAdapter: serverAdapter,
+  });
+
+  app.use("/admin/queues", serverAdapter.getRouter());
 
   // Serve dashboard static files in production (if built)
   const dashboardPath = path.join(process.cwd(), "dashboard-dist");
@@ -355,4 +373,9 @@ export function broadcastDailyDataUpdate(dailyData: any) {
   if (io) {
     io.emit("daily_data_update", { data: dailyData, timestamp: Date.now() });
   }
+}
+
+// Export function to register queues with Bull Board
+export function registerQueue(queue: Queue) {
+  bullBoardQueues.push(queue);
 }
