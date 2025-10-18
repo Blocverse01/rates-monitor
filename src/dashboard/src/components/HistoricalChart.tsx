@@ -53,20 +53,26 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
     });
 
     // Listen for hourly data updates (24h view)
-    newSocket.on("hourly_data_update", (update: { data: HourlyRateSnapshot[]; timestamp: number }) => {
-      if (viewMode === "24h") {
-        console.log("Received hourly data update", update.timestamp);
-        setHourlyData(update.data);
+    newSocket.on(
+      "hourly_data_update",
+      (update: { data: HourlyRateSnapshot[]; timestamp: number }) => {
+        if (viewMode === "24h") {
+          console.log("Received hourly data update", update.timestamp);
+          setHourlyData(update.data);
+        }
       }
-    });
+    );
 
     // Listen for daily data updates (7d view)
-    newSocket.on("daily_data_update", (update: { data: RateHistoryResponse; timestamp: number }) => {
-      if (viewMode === "7d") {
-        console.log("Received daily data update", update.timestamp);
-        setHistoryData(update.data);
+    newSocket.on(
+      "daily_data_update",
+      (update: { data: RateHistoryResponse; timestamp: number }) => {
+        if (viewMode === "7d") {
+          console.log("Received daily data update", update.timestamp);
+          setHistoryData(update.data);
+        }
       }
-    });
+    );
 
     return () => {
       newSocket.close();
@@ -196,9 +202,10 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
       // USDT uses BEP20, USDC uses Base
       const spreadData = historyData.days.map((day) => {
         const bybit = day.rates[token]?.bybit;
-        const cngnRate = token === 'USDT'
-          ? day.rates[token]?.cngn_bep20  // USDT uses BEP20
-          : day.rates[token]?.cngn_base;  // USDC uses Base
+        const cngnRate =
+          token === "USDT"
+            ? day.rates[token]?.cngn_bep20 // USDT uses BEP20
+            : day.rates[token]?.cngn_base; // USDC uses Base
 
         if (!bybit || !cngnRate) return null;
 
@@ -206,9 +213,10 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         return Math.abs(bybit - cngnRate);
       });
 
-      const spreadLabel = token === 'USDT'
-        ? "ByBit vs CNGN BEP20 Spread"
-        : "ByBit vs CNGN Base Spread";
+      const spreadLabel =
+        token === "USDT"
+          ? "ByBit vs CNGN BEP20 Spread"
+          : "ByBit vs CNGN Base Spread";
 
       if (spreadData.some((value) => value !== null)) {
         datasets.push({
@@ -292,9 +300,10 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
       // USDT uses BEP20, USDC uses Base
       const spreadData = hourlyData.map((snapshot) => {
         const bybit = snapshot.rates[token]?.bybit;
-        const cngnRate = token === 'USDT'
-          ? snapshot.rates[token]?.cngn_bep20  // USDT uses BEP20
-          : snapshot.rates[token]?.cngn_base;  // USDC uses Base
+        const cngnRate =
+          token === "USDT"
+            ? snapshot.rates[token]?.cngn_bep20 // USDT uses BEP20
+            : snapshot.rates[token]?.cngn_base; // USDC uses Base
 
         if (!bybit || !cngnRate) return null;
 
@@ -302,9 +311,10 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         return Math.abs(bybit - cngnRate);
       });
 
-      const spreadLabel = token === 'USDT'
-        ? "ByBit vs CNGN BEP20 Spread"
-        : "ByBit vs CNGN Base Spread";
+      const spreadLabel =
+        token === "USDT"
+          ? "ByBit vs CNGN BEP20 Spread"
+          : "ByBit vs CNGN Base Spread";
 
       if (spreadData.some((value) => value !== null)) {
         datasets.push({
@@ -393,7 +403,7 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
                   day: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
-                  timeZoneName: "short"
+                  timeZoneName: "short",
                 });
               }
             }

@@ -130,6 +130,39 @@ export function createServer(): {
     }
   });
 
+  // GET /api/rates/history - 7-day rate history
+  app.get("/api/rates/history", async (req, res) => {
+    const program = Effect.gen(function* () {
+      const redis = yield* RedisService;
+      const days = yield* redis.getLastNDays(7);
+
+      const response: RateHistoryResponse = {
+        days,
+        totalDays: days.length,
+      };
+
+      return {
+        success: true,
+        data: response,
+        timestamp: Date.now(),
+      };
+    }).pipe(
+      Effect.provide(ServicesLayerLive),
+      Effect.provide(InfrastructureLayerLive),
+      Effect.provide(ConfigLayerLive)
+    );
+
+    try {
+      const result = await Effect.runPromise(program);
+      return res.json(result);
+    } catch (error) {
+      return res.status(500).json({
+        success: false,
+        error: "Failed to fetch rate history",
+      });
+    }
+  });
+
   // GET /api/rates/:token - Token-specific rates
   app.get("/api/rates/:token", async (req, res) => {
     const { token } = req.params;
@@ -198,39 +231,6 @@ export function createServer(): {
       return res.status(404).json({
         success: false,
         error: "Rates not found",
-      });
-    }
-  });
-
-  // GET /api/rates/history - 7-day rate history
-  app.get("/api/rates/history", async (req, res) => {
-    const program = Effect.gen(function* () {
-      const redis = yield* RedisService;
-      const days = yield* redis.getLastNDays(7);
-
-      const response: RateHistoryResponse = {
-        days,
-        totalDays: days.length,
-      };
-
-      return {
-        success: true,
-        data: response,
-        timestamp: Date.now(),
-      };
-    }).pipe(
-      Effect.provide(ServicesLayerLive),
-      Effect.provide(InfrastructureLayerLive),
-      Effect.provide(ConfigLayerLive)
-    );
-
-    try {
-      const result = await Effect.runPromise(program);
-      return res.json(result);
-    } catch (error) {
-      return res.status(500).json({
-        success: false,
-        error: "Failed to fetch rate history",
       });
     }
   });
