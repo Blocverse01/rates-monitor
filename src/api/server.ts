@@ -134,11 +134,50 @@ export function createServer(): {
   app.get("/api/rates/history", async (req, res) => {
     const program = Effect.gen(function* () {
       const redis = yield* RedisService;
-      const days = yield* redis.getLastNDays(7);
+      const rateFetcher = yield* RateFetcherService;
+
+      // Get last 6 days of historical data
+      const historicalDays = yield* redis.getLastNDays(6);
+
+      // Get current rates for today
+      const currentRates = yield* rateFetcher.getCurrentRates();
+
+      // Create today's entry
+      const today = new Date().toISOString().split("T")[0]!;
+      const todayEntry = {
+        date: today,
+        rates: {
+          USDT: {
+            bybit: currentRates.USDT.bybit,
+            cngn_base: currentRates.USDT.cngn_base,
+            cngn_bep20: currentRates.USDT.cngn_bep20,
+          },
+          USDC: {
+            bybit: currentRates.USDC.bybit,
+            cngn_base: currentRates.USDC.cngn_base,
+            cngn_bep20: currentRates.USDC.cngn_bep20,
+          },
+        },
+        sampleCount: {
+          USDT: {
+            bybit: 1,
+            cngn_base: 1,
+            cngn_bep20: 1,
+          },
+          USDC: {
+            bybit: 1,
+            cngn_base: 1,
+            cngn_bep20: 1,
+          },
+        },
+      };
+
+      // Combine historical data with today's current rates
+      const allDays = [...historicalDays, todayEntry];
 
       const response: RateHistoryResponse = {
-        days,
-        totalDays: days.length,
+        days: allDays,
+        totalDays: allDays.length,
       };
 
       return {
