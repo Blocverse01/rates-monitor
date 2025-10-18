@@ -17,6 +17,7 @@ export function getSharedRedisClient(config: RedisConnectionConfig): Redis {
     sharedClient = new Redis({
       host: config.host,
       port: config.port,
+      maxRetriesPerRequest: null,
     });
 
     // Handle process termination
