@@ -257,6 +257,8 @@ export class ByBitService extends Context.Tag("ByBitService")<
               }
             );
 
+            console.log(response);
+
             const allAds = response.data.result.items || [];
             const filteredAds = filterReliableAds(allAds);
 
