@@ -165,10 +165,10 @@ export class ByBitService extends Context.Tag("ByBitService")<
 
       // Extract market rate from reliable ads using retail volume filtering
       const extractMarketRate = (ads: readonly ByBitP2PAd[]): number => {
-        // Filter for retail-volume ads to avoid high-volume premium bias (3K-500K NGN)
+        // Filter for retail-volume ads to avoid high-volume premium bias (3K-1M NGN)
         const retailVolumeAds = ads.filter(
           (ad) =>
-            parseFloat(ad.minAmount) <= 500000 &&
+            parseFloat(ad.minAmount) <= 1_000_000 &&
             parseFloat(ad.maxAmount) >= 3000
         );
 
@@ -230,7 +230,7 @@ export class ByBitService extends Context.Tag("ByBitService")<
               tokenId,
               currencyId: "NGN",
               side: side.toString(),
-              size: "50", // Increased size for better filtering
+              size: "200", // Increased size for better filtering
             };
 
             // For POST requests: timestamp + api_key + recv_window + jsonBodyString
@@ -256,8 +256,6 @@ export class ByBitService extends Context.Tag("ByBitService")<
                 },
               }
             );
-
-            console.log(response);
 
             const allAds = response.data.result.items || [];
             const filteredAds = filterReliableAds(allAds);
@@ -298,7 +296,7 @@ export class ByBitService extends Context.Tag("ByBitService")<
             `Market rate extracted for ${tokenId} (side ${side}): ${marketRate} NGN`
           );
           console.log(
-            `Based on ${rates.length} reliable ads, filtered for 3K-500K NGN volume range`
+            `Based on ${rates.length} reliable ads, filtered for 3K-1M NGN volume range`
           );
 
           return marketRate;
