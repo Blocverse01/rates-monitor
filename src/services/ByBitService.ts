@@ -142,28 +142,10 @@ export class ByBitService extends Context.Tag("ByBitService")<
     Effect.gen(function* () {
       const config = yield* ByBitConfig;
 
-      // Calculate mode (most frequent value) from an array of numbers
-      const calculateMode = (numbers: number[]): number => {
-        const frequency = new Map<number, number>();
-
-        for (const num of numbers) {
-          frequency.set(num, (frequency.get(num) || 0) + 1);
-        }
-
-        let maxCount = 0;
-        let mode = numbers[0];
-
-        for (const [value, count] of frequency.entries()) {
-          if (count > maxCount) {
-            maxCount = count;
-            mode = value;
-          }
-        }
-
-        return mode!;
-      };
-
-      // Extract market rate from reliable ads using retail volume filtering
+      // Extract market rate using IQR-filtered median for stability across USDT and USDC.
+      // Mode-of-integers breaks with sparse listings (USDC) because the most common integer
+      // can shift by several NGN between cycles without any real market movement.
+      // IQR filtering removes statistical outliers, then median gives a stable center.
       const extractMarketRate = (ads: readonly ByBitP2PAd[]): number => {
         // Filter for retail-volume ads to avoid high-volume premium bias (3K-1M NGN)
         const retailVolumeAds = ads.filter(
@@ -172,17 +154,31 @@ export class ByBitService extends Context.Tag("ByBitService")<
             parseFloat(ad.maxAmount) >= 3000
         );
 
-        if (retailVolumeAds.length === 0) {
-          // Fallback to all ads if no retail volume ads found
-          const allRates = ads.map((ad) => Math.trunc(parseFloat(ad.price)));
-          return calculateMode(allRates);
-        }
+        const sourceAds = retailVolumeAds.length > 0 ? retailVolumeAds : ads;
+        const prices = sourceAds
+          .map((ad) => parseFloat(ad.price))
+          .sort((a, b) => a - b);
 
-        // Get whole number part and find the most common (market consensus)
-        const wholeNumberRates = retailVolumeAds.map((ad) =>
-          Math.trunc(parseFloat(ad.price))
-        );
-        return calculateMode(wholeNumberRates);
+        if (prices.length === 1) return Math.round(prices[0]!);
+
+        // IQR-based outlier removal
+        const q1 = prices[Math.floor(prices.length * 0.25)]!;
+        const q3 = prices[Math.floor(prices.length * 0.75)]!;
+        const iqr = q3 - q1;
+        const lowerFence = q1 - 1.5 * iqr;
+        const upperFence = q3 + 1.5 * iqr;
+
+        const inliers = prices.filter((p) => p >= lowerFence && p <= upperFence);
+        const finalPrices = inliers.length > 0 ? inliers : prices;
+
+        // Median of inliers
+        const mid = Math.floor(finalPrices.length / 2);
+        const median =
+          finalPrices.length % 2 === 0
+            ? (finalPrices[mid - 1]! + finalPrices[mid]!) / 2
+            : finalPrices[mid]!;
+
+        return Math.round(median);
       };
 
       // Filter ads for reliable bank transfer merchants
@@ -296,7 +292,7 @@ export class ByBitService extends Context.Tag("ByBitService")<
             `Market rate extracted for ${tokenId} (side ${side}): ${marketRate} NGN`
           );
           console.log(
-            `Based on ${rates.length} reliable ads, filtered for 3K-1M NGN volume range`
+            `Based on ${rates.length} reliable ads (IQR-filtered median, retail 3K-1M NGN range)`
           );
 
           return marketRate;
