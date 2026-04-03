@@ -106,6 +106,11 @@ Time: ${new Date(alert.timestamp).toLocaleString()}
       ): Effect.Effect<void, NotificationError> =>
         Effect.gen(function* () {
           for (const spread of spreads) {
+            // Only alert on the blended tier — tier-specific spreads are for dashboard display only
+            if (spread.tier !== "blended") {
+              continue;
+            }
+
             // Skip USDC spread alerts for now
             if (spread.token === "USDC") {
               continue;
@@ -172,6 +177,10 @@ Time: ${new Date(alert.timestamp).toLocaleString()}
       ): Effect.Effect<void, NotificationError> =>
         Effect.gen(function* () {
           for (const alert of alerts) {
+            // Only alert on the blended tier — tier-specific volatility is for dashboard display only
+            if (alert.tier !== undefined && alert.tier !== "blended") {
+              continue;
+            }
             const message = formatVolatilityAlert(alert);
             yield* sendAlerts(message);
           }
