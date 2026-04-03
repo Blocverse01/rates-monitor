@@ -29,7 +29,7 @@ const RateCard: React.FC<RateCardProps> = ({ token, rates, spreads }) => {
   )
 
   const formatSpread = (spread?: SpreadData) => {
-    if (!spread) return '--'
+    if (!spread || spread.bybitRate == null || spread.percentageSpread == null) return '--'
     const nairaSpread = Math.abs(spread.bybitRate - spread.cngnRate)
     const sign = spread.direction === 'bybit_higher' ? '+' : '-'
     return `₦${nairaSpread.toFixed(2)} (${sign}${spread.percentageSpread.toFixed(2)}%)`

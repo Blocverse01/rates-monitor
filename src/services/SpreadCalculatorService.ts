@@ -56,11 +56,13 @@ export class SpreadCalculatorService extends Context.Tag(
         const spreads: SpreadData[] = [];
 
         for (const [token, data] of Object.entries(rates)) {
-          if (data.bybit === null) continue;
+          // Guard against null and legacy plain-number values stored before tiered rates
+          if (data.bybit === null || typeof data.bybit !== "object") continue;
 
           for (const tier of TIERS) {
             const bybitRate = data.bybit[tier];
-            if (bybitRate === null) continue;
+            // Use loose equality to catch both null and undefined (stale tier data)
+            if (bybitRate == null) continue;
 
             if (data.cngn_base !== null) {
               spreads.push(
