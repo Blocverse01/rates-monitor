@@ -150,9 +150,9 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
 
       const datasets = [];
 
-      // ByBit data
+      // ByBit data (blended tier for historical chart)
       const bybitData = historyData.days.map(
-        (day) => day.rates[token]?.bybit || null
+        (day) => day.rates[token]?.bybit?.blended ?? null
       );
       if (bybitData.some((value) => value !== null)) {
         datasets.push({
@@ -198,18 +198,16 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         });
       }
 
-      // Add spread data (in Naira, using secondary y-axis)
-      // USDT uses BEP20, USDC uses Base
+      // Add spread data (blended ByBit vs relevant CNGN chain)
       const spreadData = historyData.days.map((day) => {
-        const bybit = day.rates[token]?.bybit;
+        const bybit = day.rates[token]?.bybit?.blended;
         const cngnRate =
           token === "USDT"
-            ? day.rates[token]?.cngn_bep20 // USDT uses BEP20
-            : day.rates[token]?.cngn_base; // USDC uses Base
+            ? day.rates[token]?.cngn_bep20
+            : day.rates[token]?.cngn_base;
 
         if (!bybit || !cngnRate) return null;
 
-        // Calculate absolute spread in Naira
         return Math.abs(bybit - cngnRate);
       });
 
@@ -248,9 +246,9 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
 
       const datasets = [];
 
-      // ByBit data
+      // ByBit data (blended tier for hourly chart)
       const bybitData = hourlyData.map(
-        (snapshot) => snapshot.rates[token]?.bybit || null
+        (snapshot) => snapshot.rates[token]?.bybit?.blended ?? null
       );
       if (bybitData.some((value) => value !== null)) {
         datasets.push({
@@ -296,18 +294,16 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
         });
       }
 
-      // Add spread data (in Naira, using secondary y-axis)
-      // USDT uses BEP20, USDC uses Base
+      // Spread data (blended ByBit vs relevant CNGN chain)
       const spreadData = hourlyData.map((snapshot) => {
-        const bybit = snapshot.rates[token]?.bybit;
+        const bybit = snapshot.rates[token]?.bybit?.blended;
         const cngnRate =
           token === "USDT"
-            ? snapshot.rates[token]?.cngn_bep20 // USDT uses BEP20
-            : snapshot.rates[token]?.cngn_base; // USDC uses Base
+            ? snapshot.rates[token]?.cngn_bep20
+            : snapshot.rates[token]?.cngn_base;
 
         if (!bybit || !cngnRate) return null;
 
-        // Calculate absolute spread in Naira
         return Math.abs(bybit - cngnRate);
       });
 

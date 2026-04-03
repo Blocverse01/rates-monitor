@@ -7,6 +7,7 @@ import {
   type RateDataType,
   type TokenType,
   type CurrentRatesData,
+  type ByBitTieredRates,
 } from "../domain/types";
 import type { RateFetchError, StorageError } from "../domain/errors";
 
@@ -39,25 +40,25 @@ export class RateFetcherService extends Context.Tag("RateFetcherService")<
           const rates: RateDataType[] = [];
 
           for (const token of tokens) {
-            // Fetch ByBit rate (merchants buying USDT - our sell rate to users)
-            const bybitRate = yield* Effect.catchAll(
-              bybit.getBestRate(token, 0),
+            // Fetch ByBit tiered rates (merchants buying — our sell rate to users)
+            const bybitTiers = yield* Effect.catchAll(
+              bybit.getTieredRates(token, 0),
               (error) => {
                 console.error(`ByBit fetch error for ${token}:`, error);
                 return Effect.succeed(null);
               }
             );
 
-            if (bybitRate !== null) {
+            if (bybitTiers !== null) {
               rates.push(
                 RateData.ByBit({
                   token,
-                  rate: bybitRate,
+                  tiers: bybitTiers,
                   timestamp: Date.now(),
                 })
               );
 
-              yield* redis.setNumber(`rate:bybit:${token}`, bybitRate, 60);
+              yield* redis.setJSON(`rate:bybit:${token}`, bybitTiers, 60);
             }
 
             // Fetch CNGN rates from different chains
@@ -114,7 +115,7 @@ export class RateFetcherService extends Context.Tag("RateFetcherService")<
           const result: Record<string, any> = {};
 
           for (const token of tokens) {
-            const bybitRate = yield* redis.getNumber(`rate:bybit:${token}`);
+            const bybitTiers = yield* redis.getJSON<ByBitTieredRates>(`rate:bybit:${token}`);
             const cngnBaseRate = yield* redis.getNumber(
               `rate:cngn_base:${token}`
             );
@@ -123,7 +124,7 @@ export class RateFetcherService extends Context.Tag("RateFetcherService")<
             );
 
             result[token] = {
-              bybit: bybitRate,
+              bybit: bybitTiers,
               cngn_base: cngnBaseRate,
               cngn_bep20: cngnBep20Rate,
             };

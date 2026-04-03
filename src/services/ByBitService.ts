@@ -2,7 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import axios from "axios";
 import * as crypto from "node:crypto";
 import { RateFetchError } from "../domain/errors";
-import type { TokenType } from "../domain/types";
+import type { TokenType, ByBitTieredRates, ByBitTier } from "../domain/types";
 
 export interface ByBitConfig {
   readonly apiKey: string;
@@ -123,6 +123,15 @@ const RELIABILITY_THRESHOLDS = {
   REQUIRED_PAYMENT_METHOD: "14", // Bank Transfer
 } as const;
 
+// NGN amount boundaries for each rate tier
+const TIERS = {
+  spot:  { min: 3_000,     max: 100_000    }, // retail/individual
+  desk:  { min: 100_000,   max: 2_000_000  }, // commercial/SME
+  block: { min: 2_000_000, max: 10_000_000 }, // wholesale/institutional
+  BLENDED_MAX: 10_000_000,
+  MIN_ADS: 3, // minimum ads required to produce a reliable rate for a tier
+} as const;
+
 export class ByBitService extends Context.Tag("ByBitService")<
   ByBitService,
   {
@@ -131,10 +140,10 @@ export class ByBitService extends Context.Tag("ByBitService")<
       side: 0 | 1 // 0 = user wants to sell (merchants buying), 1 = user wants to buy (merchants selling)
     ) => Effect.Effect<readonly ByBitP2PAd[], RateFetchError>;
 
-    readonly getBestRate: (
+    readonly getTieredRates: (
       tokenId: TokenType,
       side: 0 | 1 // 0 = user wants to sell (merchants buying), 1 = user wants to buy (merchants selling)
-    ) => Effect.Effect<number, RateFetchError>;
+    ) => Effect.Effect<ByBitTieredRates, RateFetchError>;
   }
 >() {
   static readonly Live = Layer.effect(
@@ -142,36 +151,24 @@ export class ByBitService extends Context.Tag("ByBitService")<
     Effect.gen(function* () {
       const config = yield* ByBitConfig;
 
-      // Extract market rate using IQR-filtered median for stability across USDT and USDC.
-      // Mode-of-integers breaks with sparse listings (USDC) because the most common integer
-      // can shift by several NGN between cycles without any real market movement.
-      // IQR filtering removes statistical outliers, then median gives a stable center.
-      const extractMarketRate = (ads: readonly ByBitP2PAd[]): number => {
-        // Filter for retail-volume ads to avoid high-volume premium bias (3K-1M NGN)
-        const retailVolumeAds = ads.filter(
-          (ad) =>
-            parseFloat(ad.minAmount) <= 1_000_000 &&
-            parseFloat(ad.maxAmount) >= 3000
-        );
+      // IQR-filtered median over a sorted price list.
+      // Returns null when there are fewer than MIN_ADS prices (insufficient data for a tier).
+      const computeIQRMedian = (prices: number[]): number | null => {
+        if (prices.length < TIERS.MIN_ADS) return null;
 
-        const sourceAds = retailVolumeAds.length > 0 ? retailVolumeAds : ads;
-        const prices = sourceAds
-          .map((ad) => parseFloat(ad.price))
-          .sort((a, b) => a - b);
+        const sorted = [...prices].sort((a, b) => a - b);
 
-        if (prices.length === 1) return Math.round(prices[0]!);
+        if (sorted.length === 1) return Math.round(sorted[0]!);
 
-        // IQR-based outlier removal
-        const q1 = prices[Math.floor(prices.length * 0.25)]!;
-        const q3 = prices[Math.floor(prices.length * 0.75)]!;
+        const q1 = sorted[Math.floor(sorted.length * 0.25)]!;
+        const q3 = sorted[Math.floor(sorted.length * 0.75)]!;
         const iqr = q3 - q1;
         const lowerFence = q1 - 1.5 * iqr;
         const upperFence = q3 + 1.5 * iqr;
 
-        const inliers = prices.filter((p) => p >= lowerFence && p <= upperFence);
-        const finalPrices = inliers.length > 0 ? inliers : prices;
+        const inliers = sorted.filter((p) => p >= lowerFence && p <= upperFence);
+        const finalPrices = inliers.length > 0 ? inliers : sorted;
 
-        // Median of inliers
         const mid = Math.floor(finalPrices.length / 2);
         const median =
           finalPrices.length % 2 === 0
@@ -179,6 +176,29 @@ export class ByBitService extends Context.Tag("ByBitService")<
             : finalPrices[mid]!;
 
         return Math.round(median);
+      };
+
+      // Compute IQR-filtered median for each tier + a blended rate across all tiers.
+      const extractTieredRates = (ads: readonly ByBitP2PAd[]): ByBitTieredRates => {
+        const pricesForTier = (tier: { min: number; max: number }) =>
+          ads
+            .filter(
+              (ad) =>
+                parseFloat(ad.minAmount) <= tier.max &&
+                parseFloat(ad.maxAmount) >= tier.min
+            )
+            .map((ad) => parseFloat(ad.price));
+
+        const blendedPrices = ads
+          .filter((ad) => parseFloat(ad.maxAmount) <= TIERS.BLENDED_MAX)
+          .map((ad) => parseFloat(ad.price));
+
+        return {
+          spot:    computeIQRMedian(pricesForTier(TIERS.spot)),
+          desk:    computeIQRMedian(pricesForTier(TIERS.desk)),
+          block:   computeIQRMedian(pricesForTier(TIERS.block)),
+          blended: computeIQRMedian(blendedPrices),
+        };
       };
 
       // Filter ads for reliable bank transfer merchants
@@ -269,14 +289,14 @@ export class ByBitService extends Context.Tag("ByBitService")<
             }),
         });
 
-      const getBestRate = (
+      const getTieredRates = (
         tokenId: TokenType,
         side: 0 | 1
-      ): Effect.Effect<number, RateFetchError> =>
+      ): Effect.Effect<ByBitTieredRates, RateFetchError> =>
         Effect.gen(function* () {
-          const rates = yield* getP2PRates(tokenId, side);
+          const ads = yield* getP2PRates(tokenId, side);
 
-          if (rates.length === 0) {
+          if (ads.length === 0) {
             return yield* Effect.fail(
               new RateFetchError({
                 source: "bybit",
@@ -285,20 +305,18 @@ export class ByBitService extends Context.Tag("ByBitService")<
             );
           }
 
-          // Extract unbiased market rate using retail volume filtering and mode calculation
-          const marketRate = extractMarketRate(rates);
+          const tiers = extractTieredRates(ads);
 
           console.log(
-            `Market rate extracted for ${tokenId} (side ${side}): ${marketRate} NGN`
-          );
-          console.log(
-            `Based on ${rates.length} reliable ads (IQR-filtered median, retail 3K-1M NGN range)`
+            `Tiered rates for ${tokenId} (side ${side}):`,
+            `spot=${tiers.spot} desk=${tiers.desk} block=${tiers.block} blended=${tiers.blended}`,
+            `(${ads.length} reliable ads)`
           );
 
-          return marketRate;
+          return tiers;
         });
 
-      return { getP2PRates, getBestRate };
+      return { getP2PRates, getTieredRates };
     })
   );
 }

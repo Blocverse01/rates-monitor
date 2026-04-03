@@ -26,9 +26,12 @@ export class AlertManagerService extends Context.Tag("AlertManagerService")<
       const redis = yield* RedisService;
       const config = yield* AlertConfigTag;
 
+      const tierLabel = (spread: SpreadData) =>
+        `${spread.tier.toUpperCase()} / CNGN ${spread.chain.toUpperCase()}`;
+
       const formatSpreadAlert = (spread: SpreadData): string =>
         `
-🚨 SPREAD ALERT ACTIVATED - ${spread.token}
+🚨 SPREAD ALERT ACTIVATED - ${spread.token} (${tierLabel(spread)})
 
 ByBit Rate: ₦${spread.bybitRate.toFixed(2)}
 CNGN Rate: ₦${spread.cngnRate.toFixed(2)}
@@ -43,7 +46,7 @@ Time: ${new Date(spread.timestamp).toLocaleString()}
 
       const formatSpreadClearedAlert = (spread: SpreadData): string =>
         `
-✅ SPREAD ALERT CLEARED - ${spread.token}
+✅ SPREAD ALERT CLEARED - ${spread.token} (${tierLabel(spread)})
 
 ByBit Rate: ₦${spread.bybitRate.toFixed(2)}
 CNGN Rate: ₦${spread.cngnRate.toFixed(2)}
@@ -58,7 +61,7 @@ Time: ${new Date(spread.timestamp).toLocaleString()}
 
       const formatVolatilityAlert = (alert: VolatilityAlert): string =>
         `
-⚠️ VOLATILITY ALERT - ${alert.token} (${alert.source.toUpperCase()})
+⚠️ VOLATILITY ALERT - ${alert.token} (${alert.source.toUpperCase()}${alert.tier ? ` • ${alert.tier.toUpperCase()}` : ""})
 
 Previous Rate: ₦${alert.previousRate.toFixed(2)}
 Current Rate: ₦${alert.currentRate.toFixed(2)}
@@ -108,8 +111,8 @@ Time: ${new Date(alert.timestamp).toLocaleString()}
               continue;
             }
 
-            // Get previous alert state for this token
-            const alertStateKey = `spread_alert_state:${spread.token}`;
+            // Get previous alert state for this token+tier+chain combination
+            const alertStateKey = `spread_alert_state:${spread.token}:${spread.tier}:${spread.chain}`;
             const previouslyAboveThreshold = yield* Effect.catchAll(
               redis
                 .get(alertStateKey)

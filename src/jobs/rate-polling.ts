@@ -15,6 +15,7 @@ import {
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
 import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
+import type { VolatilityAlert, ByBitTier } from "../domain/types";
 
 const ratePollingProgram = Effect.gen(function* () {
   const rateFetcher = yield* RateFetcherService;
@@ -28,26 +29,44 @@ const ratePollingProgram = Effect.gen(function* () {
   // Fetch all rates
   const rates = yield* rateFetcher.fetchAllRates();
 
-  // Detect volatility for each rate
-  const volatilityAlerts = yield* Effect.all(
+  // Detect volatility for each rate — ByBit produces one alert per tier
+  const BYBIT_TIERS: Array<ByBitTier | "blended"> = ["spot", "desk", "block", "blended"];
+
+  const volatilityAlertGroups = yield* Effect.all(
     rates.map((rate) =>
       Effect.gen(function* () {
-        const { token, timestamp } = rate;
-        const rateValue = rate.rate;
-        const source = rate._tag;
+        if (rate._tag === "ByBit") {
+          const tierAlerts: (VolatilityAlert | null)[] = [];
+          for (const tier of BYBIT_TIERS) {
+            const tierRate = rate.tiers[tier];
+            if (tierRate !== null) {
+              const alert = yield* volatilityDetector.detectVolatility(
+                rate.token,
+                "ByBit",
+                tierRate,
+                tier
+              );
+              tierAlerts.push(alert);
+            }
+          }
+          return tierAlerts;
+        }
 
-        return yield* volatilityDetector.detectVolatility(
-          token,
-          source,
-          rateValue
+        const alert = yield* volatilityDetector.detectVolatility(
+          rate.token,
+          rate._tag,
+          rate.rate
         );
-      }).pipe(Effect.catchAll(() => Effect.succeed(null)))
+        return [alert];
+      }).pipe(Effect.catchAll(() => Effect.succeed([] as (VolatilityAlert | null)[]))),
     ),
     { concurrency: "unbounded" }
   );
 
-  // Filter out nulls
-  const alerts = volatilityAlerts.filter((alert) => alert !== null);
+  // Flatten and filter nulls
+  const alerts = volatilityAlertGroups
+    .flat()
+    .filter((alert): alert is VolatilityAlert => alert !== null);
 
   // Calculate spreads
   const currentRates = yield* rateFetcher.getCurrentRates();

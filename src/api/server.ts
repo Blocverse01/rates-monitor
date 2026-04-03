@@ -160,12 +160,12 @@ export function createServer(): {
         },
         sampleCount: {
           USDT: {
-            bybit: 1,
+            bybit: { spot: 1, desk: 1, block: 1, blended: 1 },
             cngn_base: 1,
             cngn_bep20: 1,
           },
           USDC: {
-            bybit: 1,
+            bybit: { spot: 1, desk: 1, block: 1, blended: 1 },
             cngn_base: 1,
             cngn_bep20: 1,
           },
@@ -220,33 +220,31 @@ export function createServer(): {
       const rates = yield* rateFetcher.getCurrentRates();
       const tokenRates = rates[token.toUpperCase() as "USDT" | "USDC"];
 
-      if (!tokenRates.bybit) {
+      if (!tokenRates.bybit || tokenRates.bybit.blended === null) {
         return yield* Effect.fail(new Error("ByBit rates not found"));
       }
 
-      // Calculate spreads for available chains
+      const tok = token.toUpperCase() as "USDT" | "USDC";
+
+      // Calculate spreads for all tiers × available chains
       const spreads = [];
+      const tiers = ["spot", "desk", "block", "blended"] as const;
 
-      if (tokenRates.cngn_base) {
-        spreads.push({
-          chain: "base",
-          ...spreadCalc.calculateSpread(
-            tokenRates.bybit,
-            tokenRates.cngn_base,
-            token.toUpperCase() as "USDT" | "USDC"
-          ),
-        });
-      }
+      for (const tier of tiers) {
+        const bybitRate = tokenRates.bybit[tier];
+        if (bybitRate === null) continue;
 
-      if (tokenRates.cngn_bep20) {
-        spreads.push({
-          chain: "bep20",
-          ...spreadCalc.calculateSpread(
-            tokenRates.bybit,
-            tokenRates.cngn_bep20,
-            token.toUpperCase() as "USDT" | "USDC"
-          ),
-        });
+        if (tokenRates.cngn_base) {
+          spreads.push(
+            spreadCalc.calculateSpread(bybitRate, tokenRates.cngn_base, tok, tier, "base")
+          );
+        }
+
+        if (tokenRates.cngn_bep20) {
+          spreads.push(
+            spreadCalc.calculateSpread(bybitRate, tokenRates.cngn_bep20, tok, tier, "bep20")
+          );
+        }
       }
 
       if (spreads.length === 0) {

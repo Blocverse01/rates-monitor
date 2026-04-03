@@ -123,12 +123,12 @@ function App() {
                 <RateCard
                   token="USDT"
                   rates={state.rates.USDT}
-                  spread={state.spreads.find((s) => s.token === "USDT")!}
+                  spreads={state.spreads.filter((s) => s.token === "USDT")}
                 />
                 <RateCard
                   token="USDC"
                   rates={state.rates.USDC}
-                  spread={state.spreads.find((s) => s.token === "USDC")!}
+                  spreads={state.spreads.filter((s) => s.token === "USDC")}
                 />
               </>
             )}

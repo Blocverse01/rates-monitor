@@ -25,19 +25,22 @@ interface SpreadChartProps {
 }
 
 const SpreadChart: React.FC<SpreadChartProps> = ({ spreads }) => {
+  // Show only blended tier spreads to keep the chart readable
+  const blendedSpreads = spreads.filter((s) => s.tier === "blended");
+
   const data = {
-    labels: spreads.map((s) => s.token),
+    labels: blendedSpreads.map((s) => `${s.token} / CNGN ${s.chain.toUpperCase()}`),
     datasets: [
       {
-        label: "Spread %",
-        data: spreads.map((s) => s.percentageSpread),
-        backgroundColor: spreads.map((s) => {
+        label: "Blended Spread %",
+        data: blendedSpreads.map((s) => s.percentageSpread),
+        backgroundColor: blendedSpreads.map((s) => {
           const absSpread = Math.abs(s.percentageSpread);
           if (absSpread > 3) return "rgba(239, 68, 68, 0.7)"; // red
           if (absSpread > 1) return "rgba(245, 158, 11, 0.7)"; // yellow
           return "rgba(34, 197, 94, 0.7)"; // green
         }),
-        borderColor: spreads.map((s) => {
+        borderColor: blendedSpreads.map((s) => {
           const absSpread = Math.abs(s.percentageSpread);
           if (absSpread > 3) return "rgb(239, 68, 68)"; // red
           if (absSpread > 1) return "rgb(245, 158, 11)"; // yellow
@@ -61,7 +64,7 @@ const SpreadChart: React.FC<SpreadChartProps> = ({ spreads }) => {
       tooltip: {
         callbacks: {
           label: function (context: any) {
-            const spread = spreads[context.dataIndex];
+            const spread = blendedSpreads[context.dataIndex];
             return [
               `Spread: ${spread?.percentageSpread?.toFixed(2)}%`,
               `Direction: ${spread?.direction.replace("_", " ")}`,

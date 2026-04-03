@@ -1,5 +1,34 @@
 import { Context, Layer } from "effect";
-import type { TokenType, SpreadData, CurrentRatesData } from "../domain/types";
+import type {
+  TokenType,
+  SpreadData,
+  CurrentRatesData,
+  ByBitTier,
+} from "../domain/types";
+
+const TIERS: Array<ByBitTier | "blended"> = ["spot", "desk", "block", "blended"];
+
+const computeSpread = (
+  bybitRate: number,
+  cngnRate: number,
+  token: TokenType,
+  tier: ByBitTier | "blended",
+  chain: "base" | "bep20"
+): SpreadData => {
+  const absoluteSpread = Math.abs(bybitRate - cngnRate);
+  const percentageSpread = (absoluteSpread / bybitRate) * 100;
+  return {
+    token,
+    tier,
+    chain,
+    bybitRate,
+    cngnRate,
+    absoluteSpread,
+    percentageSpread,
+    direction: bybitRate > cngnRate ? "bybit_higher" : "cngn_higher",
+    timestamp: Date.now(),
+  };
+};
 
 export class SpreadCalculatorService extends Context.Tag(
   "SpreadCalculatorService"
@@ -9,7 +38,9 @@ export class SpreadCalculatorService extends Context.Tag(
     readonly calculateSpread: (
       bybitRate: number,
       cngnRate: number,
-      token: TokenType
+      token: TokenType,
+      tier: ByBitTier | "blended",
+      chain: "base" | "bep20"
     ) => SpreadData;
     readonly calculateAllSpreads: (
       rates: CurrentRatesData
@@ -19,63 +50,29 @@ export class SpreadCalculatorService extends Context.Tag(
   static readonly Live = Layer.succeed(
     SpreadCalculatorService,
     SpreadCalculatorService.of({
-      calculateSpread: (bybitRate, cngnRate, token) => {
-        const absoluteSpread = Math.abs(bybitRate - cngnRate);
-        const percentageSpread = (absoluteSpread / bybitRate) * 100;
-
-        return {
-          token,
-          bybitRate,
-          cngnRate,
-          absoluteSpread,
-          percentageSpread,
-          direction: bybitRate > cngnRate ? "bybit_higher" : "cngn_higher",
-          timestamp: Date.now(),
-        };
-      },
+      calculateSpread: computeSpread,
 
       calculateAllSpreads: (rates) => {
         const spreads: SpreadData[] = [];
 
         for (const [token, data] of Object.entries(rates)) {
-          // Calculate spread for ByBit vs CNGN Base
-          if (data.bybit !== null && data.cngn_base !== null) {
-            spreads.push(
-              SpreadCalculatorService.of({
-                calculateSpread: (b, c, t) => ({
-                  token: t,
-                  bybitRate: b,
-                  cngnRate: c,
-                  absoluteSpread: Math.abs(b - c),
-                  percentageSpread: (Math.abs(b - c) / b) * 100,
-                  direction: b > c ? "bybit_higher" : "cngn_higher",
-                  timestamp: Date.now(),
-                }),
-                calculateAllSpreads: () => [],
-              }).calculateSpread(data.bybit, data.cngn_base, token as TokenType)
-            );
-          }
+          if (data.bybit === null) continue;
 
-          // Calculate spread for ByBit vs CNGN BEP20
-          if (data.bybit !== null && data.cngn_bep20 !== null) {
-            spreads.push(
-              SpreadCalculatorService.of({
-                calculateSpread: (b, c, t) => ({
-                  token: t,
-                  bybitRate: b,
-                  cngnRate: c,
-                  absoluteSpread: Math.abs(b - c),
-                  percentageSpread: (Math.abs(b - c) / b) * 100,
-                  direction: b > c ? "bybit_higher" : "cngn_higher",
-                  timestamp: Date.now(),
-                }),
-                calculateAllSpreads: () => [],
-              }).calculateSpread(
-                data.bybit,
-                data.cngn_bep20,
-                token as TokenType
-              )
-            );
+          for (const tier of TIERS) {
+            const bybitRate = data.bybit[tier];
+            if (bybitRate === null) continue;
+
+            if (data.cngn_base !== null) {
+              spreads.push(
+                computeSpread(bybitRate, data.cngn_base, token as TokenType, tier, "base")
+              );
+            }
+
+            if (data.cngn_bep20 !== null) {
+              spreads.push(
+                computeSpread(bybitRate, data.cngn_bep20, token as TokenType, tier, "bep20")
+              );
+            }
           }
         }
 

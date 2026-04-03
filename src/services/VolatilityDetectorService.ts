@@ -1,10 +1,10 @@
 import { Context, Effect, Layer } from "effect";
 import { RedisService } from "../infrastructure/RedisService";
-import type { TokenType, RateSource, VolatilityAlert } from "../domain/types";
+import type { TokenType, RateSource, VolatilityAlert, ByBitTier } from "../domain/types";
 import type { StorageError } from "../domain/errors";
 
 export interface VolatilityConfig {
-  readonly threshold: number; // percentage
+  readonly threshold: number; // NGN amount
 }
 
 export const VolatilityConfig =
@@ -18,7 +18,8 @@ export class VolatilityDetectorService extends Context.Tag(
     readonly detectVolatility: (
       token: TokenType,
       source: RateSource,
-      currentRate: number
+      currentRate: number,
+      tier?: ByBitTier | "blended"
     ) => Effect.Effect<VolatilityAlert | null, StorageError>;
   }
 >() {
@@ -31,10 +32,14 @@ export class VolatilityDetectorService extends Context.Tag(
       const detectVolatility = (
         token: TokenType,
         source: RateSource,
-        currentRate: number
+        currentRate: number,
+        tier?: ByBitTier | "blended"
       ): Effect.Effect<VolatilityAlert | null, StorageError> =>
         Effect.gen(function* () {
-          const key = `rate:previous:${source}:${token}`;
+          const key = tier
+            ? `rate:previous:${source}:${tier}:${token}`
+            : `rate:previous:${source}:${token}`;
+
           const previousRate = yield* redis.getNumber(key);
 
           // Update previous rate
@@ -51,12 +56,13 @@ export class VolatilityDetectorService extends Context.Tag(
             return {
               token,
               source,
+              ...(tier !== undefined ? { tier } : {}),
               change,
               changePercent,
               previousRate,
               currentRate,
               timestamp: Date.now(),
-            };
+            } satisfies VolatilityAlert;
           }
 
           return null;

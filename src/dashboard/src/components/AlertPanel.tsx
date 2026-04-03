@@ -29,7 +29,9 @@ const AlertPanel: React.FC<AlertPanelProps> = ({ alerts }) => {
             <div key={index} className="alert-item">
               <div className="alert-header">
                 <span className="alert-token">{alert.token}</span>
-                <span className="alert-source">{alert.source}</span>
+                <span className="alert-source">
+                  {alert.source}{alert.tier ? ` • ${alert.tier}` : ''}
+                </span>
                 <span className="alert-time">{formatTime(alert.timestamp)}</span>
               </div>
 

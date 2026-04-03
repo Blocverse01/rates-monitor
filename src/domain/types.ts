@@ -1,12 +1,29 @@
 import { Data } from "effect";
 
+// ByBit P2P rate tiers — named after OTC/FX trading desk conventions
+export type ByBitTier = "spot" | "desk" | "block";
+
+export interface ByBitTieredRates {
+  readonly spot: number | null; // ₦3K–₦100K  (retail/individual)
+  readonly desk: number | null; // ₦100K–₦2M  (commercial/SME)
+  readonly block: number | null; // ₦2M–₦10M   (wholesale/institutional)
+  readonly blended: number | null; // IQR median across all tiers (≤₦10M maxAmount cap)
+}
+
+type ByBitRateResult = {
+  readonly token: TokenType;
+  readonly tiers: ByBitTieredRates;
+  readonly timestamp: number;
+};
+
 type RateResult = {
   readonly token: TokenType;
   readonly rate: number;
   readonly timestamp: number;
 };
+
 type RateResultRecord = {
-  ByBit: RateResult;
+  ByBit: ByBitRateResult;
   CNGNBase: RateResult;
   CNGNBep20: RateResult;
 };
@@ -17,7 +34,7 @@ export type RateSource = keyof RateResultRecord;
 export type CurrentRatesData = Record<
   TokenType,
   {
-    bybit: number | null;
+    bybit: ByBitTieredRates | null;
     cngn_base: number | null;
     cngn_bep20: number | null;
   }
@@ -33,6 +50,8 @@ export const RateData = Data.taggedEnum<RateResultEnumDefinition>();
 
 export interface SpreadData {
   readonly token: TokenType;
+  readonly tier: ByBitTier | "blended";
+  readonly chain: "base" | "bep20";
   readonly bybitRate: number;
   readonly cngnRate: number;
   readonly absoluteSpread: number;
@@ -44,6 +63,7 @@ export interface SpreadData {
 export interface VolatilityAlert {
   readonly token: TokenType;
   readonly source: RateSource;
+  readonly tier?: ByBitTier | "blended";
   readonly change: number;
   readonly changePercent: number;
   readonly previousRate: number;
@@ -72,7 +92,7 @@ export interface DailyRateAverage {
   readonly rates: Record<
     TokenType,
     {
-      readonly bybit: number | null;
+      readonly bybit: ByBitTieredRates | null;
       readonly cngn_base: number | null;
       readonly cngn_bep20: number | null;
     }
@@ -80,7 +100,12 @@ export interface DailyRateAverage {
   readonly sampleCount: Record<
     TokenType,
     {
-      readonly bybit: number;
+      readonly bybit: {
+        readonly spot: number;
+        readonly desk: number;
+        readonly block: number;
+        readonly blended: number;
+      };
       readonly cngn_base: number;
       readonly cngn_bep20: number;
     }

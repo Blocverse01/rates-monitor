@@ -31,6 +31,14 @@ export class RedisService extends Context.Tag("RedisService")<
       value: number,
       ttl?: number
     ) => Effect.Effect<void, StorageError>;
+    readonly setJSON: <T>(
+      key: string,
+      value: T,
+      ttl?: number
+    ) => Effect.Effect<void, StorageError>;
+    readonly getJSON: <T>(
+      key: string
+    ) => Effect.Effect<T | null, StorageError>;
     readonly setHourlySnapshot: (
       date: string,
       hour: number,
@@ -105,6 +113,25 @@ export class RedisService extends Context.Tag("RedisService")<
         value: number,
         ttl?: number
       ): Effect.Effect<void, StorageError> => set(key, value.toString(), ttl);
+
+      const setJSON = <T>(
+        key: string,
+        value: T,
+        ttl?: number
+      ): Effect.Effect<void, StorageError> => set(key, JSON.stringify(value), ttl);
+
+      const getJSON = <T>(
+        key: string
+      ): Effect.Effect<T | null, StorageError> =>
+        Effect.gen(function* () {
+          const raw = yield* get(key);
+          if (raw === null) return null;
+          try {
+            return JSON.parse(raw) as T;
+          } catch {
+            return null;
+          }
+        });
 
       // Historic data methods
       const setHourlySnapshot = (
@@ -217,6 +244,8 @@ export class RedisService extends Context.Tag("RedisService")<
         set,
         getNumber,
         setNumber,
+        setJSON,
+        getJSON,
         setHourlySnapshot,
         getHourlySnapshots,
         setDailyAverage,
