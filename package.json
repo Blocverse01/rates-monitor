@@ -20,6 +20,7 @@
     "start": "tsx dist/index.js",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist dashboard-dist",
+    "cleanup:redis": "tsx scripts/cleanup-redis.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
     "test:whatsapp": "tsx test/infrastructure/whatsapp.test.ts",
     "test:email": "tsx test/infrastructure/email.test.ts",
