@@ -2,6 +2,7 @@ import { Layer } from "effect";
 import { ByBitConfig } from "../services/ByBitService";
 import { BlockradarConfig } from "../services/BlockradarService";
 import { RedisConfig } from "../infrastructure/RedisService";
+import { readRedisConfigFromEnv } from "../infrastructure/SharedRedisClient";
 import { WhatsAppConfig } from "../infrastructure/WhatsAppService";
 import { SMTPConfig } from "../infrastructure/EmailService";
 import { VolatilityConfig } from "../services/VolatilityDetectorService";
@@ -28,10 +29,7 @@ export const ConfigLayerLive = Layer.mergeAll(
       CNGN_BEP20: "73e146a3-019c-48f5-a9c3-304c91a25818",
     },
   }),
-  Layer.succeed(RedisConfig, {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-  }),
+  Layer.succeed(RedisConfig, readRedisConfigFromEnv()),
   Layer.succeed(WhatsAppConfig, {
     apiUrl: process.env.WHATSAPP_API_URL || "https://graph.facebook.com/v18.0",
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN!,

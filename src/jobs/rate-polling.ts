@@ -14,7 +14,10 @@ import {
 } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
-import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
+import {
+  getSharedRedisClient,
+  readRedisConfigFromEnv,
+} from "../infrastructure/SharedRedisClient";
 import type { VolatilityAlert, ByBitTier } from "../domain/types";
 
 const ratePollingProgram = Effect.gen(function* () {
@@ -30,7 +33,12 @@ const ratePollingProgram = Effect.gen(function* () {
   const rates = yield* rateFetcher.fetchAllRates();
 
   // Detect volatility for each rate — ByBit produces one alert per tier
-  const BYBIT_TIERS: Array<ByBitTier | "blended"> = ["spot", "desk", "block", "blended"];
+  const BYBIT_TIERS: Array<ByBitTier | "blended"> = [
+    "spot",
+    "desk",
+    "block",
+    "blended",
+  ];
 
   const volatilityAlertGroups = yield* Effect.all(
     rates.map((rate) =>
@@ -58,7 +66,9 @@ const ratePollingProgram = Effect.gen(function* () {
           rate.rate
         );
         return [alert];
-      }).pipe(Effect.catchAll(() => Effect.succeed([] as (VolatilityAlert | null)[]))),
+      }).pipe(
+        Effect.catchAll(() => Effect.succeed([] as (VolatilityAlert | null)[]))
+      )
     ),
     { concurrency: "unbounded" }
   );
@@ -106,13 +116,7 @@ const ratePollingProgram = Effect.gen(function* () {
 });
 
 export function setupRatePollingJob() {
-  const redisConfig = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-  };
-
-  // Use shared Redis client to prevent connection leaks
-  const sharedRedisClient = getSharedRedisClient(redisConfig);
+  const sharedRedisClient = getSharedRedisClient(readRedisConfigFromEnv());
 
   const queue = new Queue("rate-polling", {
     connection: sharedRedisClient,

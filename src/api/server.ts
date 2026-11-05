@@ -16,6 +16,8 @@ import { createBullBoard } from "@bull-board/api";
 import { BullMQAdapter } from "@bull-board/api/bullMQAdapter";
 import { ExpressAdapter } from "@bull-board/express";
 import { Queue } from "bullmq";
+import { isTodayOrFutureUtc } from "./aggregateDate";
+import { operatorAuthUnlessPublic, socketOperatorAuth } from "./operatorAuth";
 
 // Global WebSocket server instance for rate broadcasting
 let io: SocketIOServer | null = null;
@@ -40,7 +42,10 @@ export function createServer(): {
     },
   });
 
+  io.use(socketOperatorAuth);
+
   app.use(express.json());
+  app.use(operatorAuthUnlessPublic);
 
   // Setup Bull Board for queue monitoring
   const serverAdapter = new ExpressAdapter();
@@ -236,13 +241,25 @@ export function createServer(): {
 
         if (tokenRates.cngn_base) {
           spreads.push(
-            spreadCalc.calculateSpread(bybitRate, tokenRates.cngn_base, tok, tier, "base")
+            spreadCalc.calculateSpread(
+              bybitRate,
+              tokenRates.cngn_base,
+              tok,
+              tier,
+              "base"
+            )
           );
         }
 
         if (tokenRates.cngn_bep20) {
           spreads.push(
-            spreadCalc.calculateSpread(bybitRate, tokenRates.cngn_bep20, tok, tier, "bep20")
+            spreadCalc.calculateSpread(
+              bybitRate,
+              tokenRates.cngn_bep20,
+              tok,
+              tier,
+              "bep20"
+            )
           );
         }
       }
@@ -343,6 +360,13 @@ export function createServer(): {
       return res.status(400).json({
         success: false,
         error: "Invalid date format. Use YYYY-MM-DD",
+      });
+    }
+
+    if (isTodayOrFutureUtc(date)) {
+      return res.status(400).json({
+        success: false,
+        error: "Cannot aggregate today or a future date (UTC)",
       });
     }
 

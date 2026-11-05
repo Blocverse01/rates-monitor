@@ -1,0 +1,14 @@
+process.env.ALERT_WHATSAPP_NUMBERS ??= "1";
+process.env.ALERT_EMAILS ??= "test@example.com";
+process.env.BYBIT_API_KEY ??= "test";
+process.env.BYBIT_API_SECRET ??= "test";
+process.env.BLOCKRADAR_API_KEY ??= "test";
+process.env.BLOCKRADAR_BASE_URL ??= "https://example.test";
+process.env.WHATSAPP_ACCESS_TOKEN ??= "test";
+process.env.WHATSAPP_PHONE_NUMBER_ID ??= "test";
+process.env.SMTP_HOST ??= "localhost";
+process.env.SMTP_USER ??= "test";
+process.env.SMTP_PASS ??= "test";
+process.env.SMTP_FROM_EMAIL ??= "test@example.com";
+process.env.OPERATOR_AUTH_USER ??= "operator";
+process.env.OPERATOR_AUTH_PASSWORD ??= "test-operator-password";

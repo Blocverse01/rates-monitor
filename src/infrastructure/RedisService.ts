@@ -1,6 +1,9 @@
 import { Context, Effect, Layer } from "effect";
 import { StorageError } from "../domain/errors";
-import { getSharedRedisClient, type RedisConnectionConfig } from "./SharedRedisClient";
+import {
+  getSharedRedisClient,
+  type RedisConnectionConfig,
+} from "./SharedRedisClient";
 import type {
   HourlyRateSnapshot,
   DailyRateAverage,
@@ -10,6 +13,9 @@ import type {
 export interface RedisConfig {
   readonly host: string;
   readonly port: number;
+  readonly password?: string;
+  readonly tls?: boolean;
+  readonly url?: string;
 }
 
 export const RedisConfig = Context.GenericTag<RedisConfig>("RedisConfig");
@@ -36,9 +42,7 @@ export class RedisService extends Context.Tag("RedisService")<
       value: T,
       ttl?: number
     ) => Effect.Effect<void, StorageError>;
-    readonly getJSON: <T>(
-      key: string
-    ) => Effect.Effect<T | null, StorageError>;
+    readonly getJSON: <T>(key: string) => Effect.Effect<T | null, StorageError>;
     readonly setHourlySnapshot: (
       date: string,
       hour: number,
@@ -68,6 +72,9 @@ export class RedisService extends Context.Tag("RedisService")<
       const redis = getSharedRedisClient({
         host: config.host,
         port: config.port,
+        ...(config.password ? { password: config.password } : {}),
+        ...(config.tls ? { tls: config.tls } : {}),
+        ...(config.url ? { url: config.url } : {}),
       } satisfies RedisConnectionConfig);
 
       const get = (key: string): Effect.Effect<string | null, StorageError> =>
@@ -118,11 +125,10 @@ export class RedisService extends Context.Tag("RedisService")<
         key: string,
         value: T,
         ttl?: number
-      ): Effect.Effect<void, StorageError> => set(key, JSON.stringify(value), ttl);
+      ): Effect.Effect<void, StorageError> =>
+        set(key, JSON.stringify(value), ttl);
 
-      const getJSON = <T>(
-        key: string
-      ): Effect.Effect<T | null, StorageError> =>
+      const getJSON = <T>(key: string): Effect.Effect<T | null, StorageError> =>
         Effect.gen(function* () {
           const raw = yield* get(key);
           if (raw === null) return null;
