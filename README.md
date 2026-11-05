@@ -73,12 +73,21 @@ SMTP_PASS=your_app_password
 
 **Note:** For Gmail, enable 2FA and generate an App Password.
 
+## Operator authentication
+
+The dashboard, `/admin/queues`, `/api/*`, and Socket.IO are gated by
+HTTP basic auth from `OPERATOR_AUTH_USER` and `OPERATOR_AUTH_PASSWORD`.
+If those are unset, requests fail closed with 401. `/health` stays public.
+
+`pnpm cleanup:redis` requires `--confirm` and refuses production hosts
+or `NODE_ENV=production`.
+
 ## API Endpoints
 
 - `GET /api/rates` - Get current rates for all tokens
 - `GET /api/rates/spreads` - Get spread analysis
 - `GET /api/rates/:token` - Get rates for specific token (USDT/USDC)
-- `GET /health` - Health check
+- `GET /health` - Health check (unauthenticated)
 
 ## Testing
 

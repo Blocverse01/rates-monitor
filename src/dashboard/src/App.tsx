@@ -10,6 +10,12 @@ import SpreadChart from "./components/SpreadChart";
 import AlertPanel from "./components/AlertPanel";
 import ConnectionStatus from "./components/ConnectionStatus";
 import HistoricalChart from "./components/HistoricalChart";
+import {
+  getStoredOperatorAuth,
+  operatorFetch,
+  operatorSocketOptions,
+  storeOperatorAuth,
+} from "./operatorClient";
 import "./App.css";
 
 interface DashboardState {
@@ -30,12 +36,32 @@ function App() {
   });
 
   const [socket, setSocket] = useState<Socket | null>(null);
+  const [needsLogin, setNeedsLogin] = useState<boolean | null>(
+    getStoredOperatorAuth() ? false : null
+  );
+  const [loginUser, setLoginUser] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
-    // Connect to WebSocket
-    const newSocket = io("ws://localhost:3000", {
-      transports: ["websocket"],
-    });
+    if (needsLogin !== null) {
+      return;
+    }
+    operatorFetch("/api/rates")
+      .then((response) => {
+        setNeedsLogin(response.status === 401);
+      })
+      .catch(() => {
+        setNeedsLogin(true);
+      });
+  }, [needsLogin]);
+
+  useEffect(() => {
+    if (needsLogin !== false) {
+      return;
+    }
+
+    const newSocket = io("ws://localhost:3000", operatorSocketOptions());
 
     newSocket.on("connect", () => {
       setState((prev) => ({ ...prev, connected: true }));
@@ -73,14 +99,19 @@ function App() {
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [needsLogin]);
 
   const fetchInitialData = async () => {
     try {
       const [ratesRes, spreadsRes] = await Promise.all([
-        fetch("/api/rates"),
-        fetch("/api/rates/spreads"),
+        operatorFetch("/api/rates"),
+        operatorFetch("/api/rates/spreads"),
       ]);
+
+      if (ratesRes.status === 401 || spreadsRes.status === 401) {
+        setNeedsLogin(true);
+        return;
+      }
 
       const ratesData = await ratesRes.json();
       const spreadsData = await spreadsRes.json();
@@ -97,6 +128,66 @@ function App() {
       console.error("Failed to fetch initial data:", error);
     }
   };
+
+  const submitLogin = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!loginUser.trim() || !loginPassword) {
+      setLoginError("Username and password are required");
+      return;
+    }
+
+    storeOperatorAuth(loginUser.trim(), loginPassword);
+    const probe = await operatorFetch("/api/rates");
+    if (probe.status === 401) {
+      setLoginError("Invalid operator credentials");
+      return;
+    }
+
+    setLoginError("");
+    setNeedsLogin(false);
+  };
+
+  if (needsLogin === null) {
+    return (
+      <div className="app">
+        <main className="operator-login">
+          <p>Checking operator access...</p>
+        </main>
+      </div>
+    );
+  }
+
+  if (needsLogin) {
+    return (
+      <div className="app">
+        <main className="operator-login">
+          <form className="operator-login-card" onSubmit={submitLogin}>
+            <h1>Operator sign-in</h1>
+            <p>Rates monitor requires operator credentials.</p>
+            <label>
+              Username
+              <input
+                autoComplete="username"
+                value={loginUser}
+                onChange={(event) => setLoginUser(event.target.value)}
+              />
+            </label>
+            <label>
+              Password
+              <input
+                type="password"
+                autoComplete="current-password"
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+              />
+            </label>
+            {loginError ? <p className="login-error">{loginError}</p> : null}
+            <button type="submit">Continue</button>
+          </form>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app">

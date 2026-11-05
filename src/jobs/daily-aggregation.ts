@@ -6,7 +6,10 @@ import { ConfigLayerLive } from "../layers/config";
 import { broadcastDailyDataUpdate, registerQueue } from "../api/server";
 import { RedisService } from "../infrastructure/RedisService";
 import { InfrastructureLayerLive } from "../layers/infrastructure";
-import { getSharedRedisClient } from "../infrastructure/SharedRedisClient";
+import {
+  getSharedRedisClient,
+  readRedisConfigFromEnv,
+} from "../infrastructure/SharedRedisClient";
 
 const dailyAggregationProgram = Effect.gen(function* () {
   const aggregator = yield* DailyAggregationService;
@@ -38,13 +41,7 @@ const dailyAggregationProgram = Effect.gen(function* () {
 });
 
 export function setupDailyAggregationJob() {
-  const redisConfig = {
-    host: process.env.REDIS_HOST || "localhost",
-    port: parseInt(process.env.REDIS_PORT || "6379"),
-  };
-
-  // Use shared Redis client to prevent connection leaks
-  const sharedRedisClient = getSharedRedisClient(redisConfig);
+  const sharedRedisClient = getSharedRedisClient(readRedisConfigFromEnv());
 
   const queue = new Queue("daily-aggregation", {
     connection: sharedRedisClient,

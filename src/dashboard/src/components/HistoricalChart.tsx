@@ -15,6 +15,7 @@ import type {
   RateHistoryResponse,
   HourlyRateSnapshot,
 } from "../../../domain/types";
+import { operatorFetch, operatorSocketOptions } from "../operatorClient";
 
 ChartJS.register(
   CategoryScale,
@@ -48,9 +49,7 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
 
   // WebSocket listeners for real-time historical data updates
   useEffect(() => {
-    const newSocket = io("ws://localhost:3000", {
-      transports: ["websocket"],
-    });
+    const newSocket = io("ws://localhost:3000", operatorSocketOptions());
 
     // Listen for hourly data updates (24h view)
     newSocket.on(
@@ -96,7 +95,7 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
 
   const fetchHistoryData = async () => {
     try {
-      const response = await fetch("/api/rates/history");
+      const response = await operatorFetch("/api/rates/history");
       const data = await response.json();
 
       if (data.success) {
@@ -111,7 +110,7 @@ const HistoricalChart: React.FC<HistoricalChartProps> = ({ token }) => {
     try {
       // Get today's date in YYYY-MM-DD format
       const today = new Date().toISOString().split("T")[0];
-      const response = await fetch(`/api/rates/hourly/${today}`);
+      const response = await operatorFetch(`/api/rates/hourly/${today}`);
       const data = await response.json();
 
       if (data.success) {

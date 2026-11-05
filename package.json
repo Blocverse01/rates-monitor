@@ -21,7 +21,7 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist dashboard-dist",
     "cleanup:redis": "tsx scripts/cleanup-redis.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "tsx --test --test-concurrency=1 test/security/*.test.ts",
     "test:whatsapp": "tsx test/infrastructure/whatsapp.test.ts",
     "test:email": "tsx test/infrastructure/email.test.ts",
     "lint": "echo \"Add ESLint configuration\"",
@@ -53,6 +53,8 @@
     "@vitejs/plugin-react": "^4.2.1",
     "concurrently": "^8.2.2",
     "prettier": "^3.6.2",
+    "supertest": "^7.1.4",
+    "@types/supertest": "^6.0.3",
     "tsx": "^4.20.6",
     "typescript": "^5.3.3",
     "vite": "^5.0.10"
